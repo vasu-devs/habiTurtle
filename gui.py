@@ -1,8 +1,12 @@
 import tkinter as tk
+from PIL import Image
 from PIL import Image, ImageTk
-import os
-from storage import mark_today_done,load_habits,get_streak
+import os, threading
+from storage import mark_today_done, load_habits, get_streak
 from datetime import datetime
+import pystray
+from pystray import MenuItem as item
+from PIL import Image as PILImage
 
 def show_toast(message):
     toast=tk.Toplevel()
@@ -24,25 +28,30 @@ def show_toast(message):
 
 def get_mascot_image(mood, max_width=100):
     import sys
-    if hasattr(sys,"_MEIPASS"):
-        base_path=sys._MEIPASS
+    if hasattr(sys, "_MEIPASS"):
+        base_path = sys._MEIPASS
     else:
-        base_path= os.path.abspath(".")
-    
-    path=os.path.join(base_path,"assets",f"{mood}.png")
+        base_path = os.path.abspath(".")
 
-    image=Image.open(path)
+    path = os.path.join(base_path, "assets", f"{mood}.png")
+    image = Image.open(path)
 
     w_percent = max_width / float(image.size[0])
-    new_height = int((float(image.size[1])*float(w_percent)))
-    
-    resized_image = image.resize((max_width,new_height), Image.ANTIALIAS)
+    new_height = int((float(image.size[1]) * float(w_percent)))
+
+    # 🟢 Updated line (no more ANTIALIAS)
+    resized_image = image.resize((max_width, new_height), Image.Resampling.LANCZOS)
     return ImageTk.PhotoImage(resized_image)
+
 
 def launch_app():
     root = tk.Tk()
     root.title("HabiTurtle 🐢")
     root.geometry("400x400")
+    
+    # Make window act like a floating widget
+    root.attributes("-topmost", True)
+    root.overrideredirect(False)  # True removes title bar completely
 
     def update_streak():
         habits=load_habits()
@@ -113,6 +122,8 @@ def launch_app():
         show_toast("✅ Habit recorded!")
         print("✅ Saved today's habit status.")
 
+        root.withdraw()
+
     #Streak
     streak = get_streak(habits)
 
@@ -133,6 +144,23 @@ def launch_app():
         pady=5
     )
     mark_button.pack(pady=15) #Space around the button
+
+        # === 🔴 NEW: Tray Integration ===
+    def show_window(icon, item):
+        root.deiconify()   # restores window if hidden
+
+    def quit_app(icon, item):
+        icon.stop()
+        root.destroy()
+
+    # Simple placeholder icon (green square) — replace with turtle later
+    icon_image = PILImage.new("RGB", (64, 64), (0, 200, 0))
+    menu = (item('Open HabitTurtle', show_window), item('Quit', quit_app))
+    icon = pystray.Icon("habiturtle", icon_image, "HabitTurtle", menu)
+
+    threading.Thread(target=icon.run, daemon=True).start()
+
+    
     root.mainloop()
 
 def draw_heatmap(frame, habits):
